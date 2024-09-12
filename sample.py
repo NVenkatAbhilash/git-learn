@@ -1,24 +1,45 @@
-from google.cloud import bigquery
+import asyncio
+import aiohttp
+import os
+import time
+import json
 
-def print_column_names(project_id, dataset_id, table_id):
-    # Initialize a BigQuery client
-    client = bigquery.Client(project=project_id)
-    
-    # Construct a fully-qualified table ID
-    table_ref = f"{project_id}.{dataset_id}.{table_id}"
-    
-    # Get the table schema
-    table = client.get_table(table_ref)
-    schema = table.schema
-    
-    # Print the column names
-    print(f"Column names in table {table_id}:")
-    for field in schema:
-        print(field.name)
+# Define the folder containing the request files
+folder_path = './requests'  # Replace with your folder path
 
-# Example usage
-project_id = 'your-project-id'
-dataset_id = 'your-dataset-id'
-table_id = 'your-table-id'
+# Function to read files that start with 'request_' from the specified folder
+def get_request_files(folder):
+    return [os.path.join(folder, file) for file in os.listdir(folder) if file.startswith('request_')]
 
-print_column_names(project_id, dataset_id, table_id)
+# Asynchronous function to make an API call
+async def make_api_call(session, url, payload):
+    try:
+        start_time = time.time()
+        async with session.post(url, json=payload) as response:
+            elapsed_time = time.time() - start_time
+            status = response.status
+            response_text = await response.text()
+            print(f"Response Status: {status}, Time Taken: {elapsed_time:.2f} seconds, Response: {response_text}")
+    except Exception as e:
+        print(f"Error making request: {e}")
+
+# Asynchronous function to process request files and make API calls
+async def process_request_files():
+    url = 'http://localhost:5000/your-api-endpoint'  # Replace with your API endpoint
+    request_files = get_request_files(folder_path)
+    
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for file_path in request_files:
+            with open(file_path, 'r') as file:
+                payload = json.load(file)  # Assuming each file contains a JSON payload
+                tasks.append(make_api_call(session, url, payload))
+        
+        await asyncio.gather(*tasks)  # Run all tasks concurrently
+
+# Main function to run the asynchronous tasks
+async def main():
+    await process_request_files()
+
+# Run the main function
+asyncio.run(main())
