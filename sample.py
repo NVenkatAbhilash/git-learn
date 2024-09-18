@@ -1,31 +1,26 @@
 from datetime import datetime, timedelta
-import calendar
+from dateutil.relativedelta import relativedelta
 
-def is_within_range(format1, format2):
-    # Parse format1: time with timezone info
-    time_format1 = datetime.fromisoformat(format1)
+def is_format1_in_range(format1_str, format2_str):
+    # Parse format1 (e.g., "2024-05-17 14:05:56.333000 UTC")
+    format1 = datetime.strptime(format1_str, "%Y-%m-%d %H:%M:%S.%f UTC")
     
-    # Parse format2: month/day/year
-    date_format2 = datetime.strptime(format2, "%m/%d/%Y")
+    # Parse format2 (e.g., "4/1/2023")
+    format2 = datetime.strptime(format2_str, "%m/%d/%Y")
     
-    # Calculate the start of the range: 11 months before format2
-    year = date_format2.year
-    month = date_format2.month
-    start_year = year if month > 11 else year - 1
-    start_month = (month - 11) if month > 11 else (month + 1)
+    # Calculate the range:
+    # 11 months before format2 (start of range)
+    start_range = format2 - relativedelta(months=11)
     
-    # Start range: first day of the start month
-    start_range = datetime(start_year, start_month, 1)
-
-    # End range: last day of format2's month
-    last_day_of_month = calendar.monthrange(year, month)[1]
-    end_range = datetime(year, month, last_day_of_month, 23, 59, 59, 999999)
+    # End of range is the last day of the month of format2
+    end_range = format2.replace(day=1) + relativedelta(months=1) - timedelta(days=1)
     
     # Check if format1 is within the range
-    return start_range <= time_format1 <= end_range
+    return start_range <= format1 <= end_range
 
-# Example usage:
-format1 = "2022-05-01T10:04:15.520000+00:00"  # ISO format
-format2 = "4/1/2023"  # MM/DD/YYYY
+# Test the function
+format1_str = "2024-05-17 14:05:56.333000 UTC"
+format2_str = "4/1/2023"  # month/day/year
+result = is_format1_in_range(format1_str, format2_str)
 
-print(is_within_range(format1, format2))  # Returns True or False
+print("Is format1 in range:", result)
