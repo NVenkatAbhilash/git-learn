@@ -1,45 +1,31 @@
-import asyncio
-import aiohttp
-import os
-import time
-import json
+from datetime import datetime, timedelta
+import calendar
 
-# Define the folder containing the request files
-folder_path = './requests'  # Replace with your folder path
-
-# Function to read files that start with 'request_' from the specified folder
-def get_request_files(folder):
-    return [os.path.join(folder, file) for file in os.listdir(folder) if file.startswith('request_')]
-
-# Asynchronous function to make an API call
-async def make_api_call(session, url, payload):
-    try:
-        start_time = time.time()
-        async with session.post(url, json=payload) as response:
-            elapsed_time = time.time() - start_time
-            status = response.status
-            response_text = await response.text()
-            print(f"Response Status: {status}, Time Taken: {elapsed_time:.2f} seconds, Response: {response_text}")
-    except Exception as e:
-        print(f"Error making request: {e}")
-
-# Asynchronous function to process request files and make API calls
-async def process_request_files():
-    url = 'http://localhost:5000/your-api-endpoint'  # Replace with your API endpoint
-    request_files = get_request_files(folder_path)
+def is_within_range(format1, format2):
+    # Parse format1: time with timezone info
+    time_format1 = datetime.fromisoformat(format1)
     
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for file_path in request_files:
-            with open(file_path, 'r') as file:
-                payload = json.load(file)  # Assuming each file contains a JSON payload
-                tasks.append(make_api_call(session, url, payload))
-        
-        await asyncio.gather(*tasks)  # Run all tasks concurrently
+    # Parse format2: month/day/year
+    date_format2 = datetime.strptime(format2, "%m/%d/%Y")
+    
+    # Calculate the start of the range: 11 months before format2
+    year = date_format2.year
+    month = date_format2.month
+    start_year = year if month > 11 else year - 1
+    start_month = (month - 11) if month > 11 else (month + 1)
+    
+    # Start range: first day of the start month
+    start_range = datetime(start_year, start_month, 1)
 
-# Main function to run the asynchronous tasks
-async def main():
-    await process_request_files()
+    # End range: last day of format2's month
+    last_day_of_month = calendar.monthrange(year, month)[1]
+    end_range = datetime(year, month, last_day_of_month, 23, 59, 59, 999999)
+    
+    # Check if format1 is within the range
+    return start_range <= time_format1 <= end_range
 
-# Run the main function
-asyncio.run(main())
+# Example usage:
+format1 = "2022-05-01T10:04:15.520000+00:00"  # ISO format
+format2 = "4/1/2023"  # MM/DD/YYYY
+
+print(is_within_range(format1, format2))  # Returns True or False
