@@ -1,31 +1,36 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import axios from 'axios';
 
-const DownloadExcel = () => {
-    useEffect(() => {
-        const downloadFile = async () => {
-            const response = await fetch('http://localhost:5000/download'); // Replace with your Flask server URL
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'data.xlsx'; // Set the desired filename
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } else {
-                console.error('Error downloading file:', response.statusText);
-            }
-        };
+function App() {
+  const handleDownload = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:5000/download', {
+        responseType: 'blob', // Important for file downloads
+      });
 
-        downloadFile();
-    }, []);
+      // Create a link element
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'sample_data.xlsx'); // File name to download
 
-    return (
-        <div>
-            {/* Your component content */}
-        </div>
-    );
-};
+      // Append to the body and click to trigger download
+      document.body.appendChild(link);
+      link.click();
 
-export default DownloadExcel;
+      // Cleanup
+      link.parentNode.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading the file:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Download Excel File</h1>
+      <button onClick={handleDownload}>Download XLSX</button>
+    </div>
+  );
+}
+
+export default App;
