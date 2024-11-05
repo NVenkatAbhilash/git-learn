@@ -1,36 +1,35 @@
-import React from 'react';
-import axios from 'axios';
+def delete_nested_objects(d):
+    """Recursively delete all nested objects within a dictionary."""
+    # Iterate over each item in the dictionary
+    for key, value in list(d.items()):
+        if isinstance(value, dict):
+            # If value is a nested dictionary, recurse into it
+            delete_nested_objects(value)
+            d[key].clear()
+        elif isinstance(value, list):
+            # If value is a list, clear each nested dictionary in the list
+            for item in value:
+                if isinstance(item, dict):
+                    delete_nested_objects(item)
+            value.clear()
+        # Delete the item in the dictionary itself
+        del d[key]
+        
+    d.clear()  # Finally, clear the outermost dictionary
 
-function App() {
-  const handleDownload = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:5000/download', {
-        responseType: 'blob', // Important for file downloads
-      });
-
-      // Create a link element
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'sample_data.xlsx'); // File name to download
-
-      // Append to the body and click to trigger download
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      link.parentNode.removeChild(link);
-    } catch (error) {
-      console.error('Error downloading the file:', error);
+# Example usage
+data = {
+    "level1": {
+        "level2": {
+            "key1": "value1",
+            "key2": {"key3": "value3"}
+        },
+        "level2_list": [
+            {"list_key1": "list_value1"},
+            {"list_key2": "list_value2"}
+        ]
     }
-  };
-
-  return (
-    <div>
-      <h1>Download Excel File</h1>
-      <button onClick={handleDownload}>Download XLSX</button>
-    </div>
-  );
 }
 
-export default App;
+delete_nested_objects(data)
+print(data)  # Output will be an empty dictionary
