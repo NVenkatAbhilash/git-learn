@@ -1,35 +1,26 @@
-def delete_nested_objects(d):
-    """Recursively delete all nested objects within a dictionary."""
-    # Iterate over each item in the dictionary
-    for key, value in list(d.items()):
-        if isinstance(value, dict):
-            # If value is a nested dictionary, recurse into it
-            delete_nested_objects(value)
-            d[key].clear()
-        elif isinstance(value, list):
-            # If value is a list, clear each nested dictionary in the list
-            for item in value:
-                if isinstance(item, dict):
-                    delete_nested_objects(item)
-            value.clear()
-        # Delete the item in the dictionary itself
-        del d[key]
+import pandas as pd
+import math
+
+# Function to split a CSV file into smaller files
+def split_csv(input_file, rows_per_file=500):
+    # Read the input CSV file
+    df = pd.read_csv(input_file)
+    total_rows = len(df)
+    
+    # Calculate the number of files needed
+    num_files = math.ceil(total_rows / rows_per_file)
+    
+    # Split the DataFrame and save smaller CSV files
+    for i in range(num_files):
+        start_row = i * rows_per_file
+        end_row = start_row + rows_per_file
+        chunk = df[start_row:end_row]
         
-    d.clear()  # Finally, clear the outermost dictionary
+        # Save each chunk as a new CSV file
+        output_file = f"{input_file.split('.')[0]}_part{i + 1}.csv"
+        chunk.to_csv(output_file, index=False)
+        print(f"Created: {output_file}")
 
 # Example usage
-data = {
-    "level1": {
-        "level2": {
-            "key1": "value1",
-            "key2": {"key3": "value3"}
-        },
-        "level2_list": [
-            {"list_key1": "list_value1"},
-            {"list_key2": "list_value2"}
-        ]
-    }
-}
-
-delete_nested_objects(data)
-print(data)  # Output will be an empty dictionary
+input_file = "large_file.csv"  # Replace with your CSV file
+split_csv(input_file, rows_per_file=500)
