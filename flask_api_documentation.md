@@ -9,11 +9,9 @@
 5. [Handling POST Requests](#handling-post-requests)
 6. [Request Parameters](#request-parameters)
 7. [Response Formatting](#response-formatting)
-8. [Error Handling](#error-handling)
-9. [Authentication](#authentication)
-10. [Testing Your API](#testing-your-api)
-11. [Best Practices](#best-practices)
-12. [Example Project](#example-project)
+8. [Testing Your API](#testing-your-api)
+9. [Best Practices](#best-practices)
+10. [Example Project](#example-project)
 
 ## Introduction
 
