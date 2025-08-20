@@ -1,0 +1,22 @@
+Responsibilities
+§ Design and implement a RESTful API layer in Python using Flask
+§ Design and own the front-end architecture of a React application
+§ Build moderately complex user interfaces from scratch in React following wireframes
+§ Containerize and deploy the API layer onto Google Cloud using GKE
+As part of Analytics & Behavior Change, you will be embedded in a data engineering team. You will support analytical consultants and data scientists who are designing and developing applications/pipelines. Your primary focus will be on both back-end, front-end and API layer. You will brainstorm with product owners, consultants, data scientists and fellow engineers.
+Required Qualifications
+§ 3+ years of software development in enterprise/web/cloud applications
+§ 3+ years of experience with API development and React JS
+§ 3+ years of experience with HTML5/CSS and JavaScript
+§ 2+ years of experience with Python
+§ 2+ years of experience with Google Cloud Platform preferably, but alternatively Azure or AWS
+§ 2+ years of experience with Flask, FastAPI, or similar API frameworks
+§ 1+ years of experience with build automation technologies like Maven, Jenkins, etc.
+§ 1+ years of exposure to data engineering, analytics engineering, or machine learning.
+§ 1+ years of exposure to non-relational datastores like Big-Query
+§ Capable of delivering on multiple competing priorities with little supervision
+§ Excellent verbal and written communication and collaboration skills
+Good to have Qualifications
+§ Knowledge of UI design tools such as Figma
+§ Have familiarity with Machine learning and basic statistic concepts
+§ Have familiarity with DevOps concepts
