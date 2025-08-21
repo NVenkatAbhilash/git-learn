@@ -1,0 +1,39 @@
+.chat-icon {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #4a6cf7;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 1000;
+  user-select: none;
+}
+
+.chat-icon:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.chat-icon.dragging {
+  opacity: 0.8;
+  transform: scale(1.1);
+  cursor: grabbing;
+}
+
+.chat-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chat-icon {
+    background-color: #5d7bf9;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  }
+}
