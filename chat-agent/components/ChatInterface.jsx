@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import './ChatInterface.css';
 import { getStoredMessages, addMessage, getChatResponse } from '../services/chatService';
 
-const ChatInterface = ({ isOpen, onClose }) => {
+const ChatInterface = ({ isOpen, onClose, agentName = "IntelliChat" }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Scroll to bottom of messages
@@ -79,12 +80,36 @@ const ChatInterface = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="chat-interface">
+    <div className={`chat-interface ${isFullScreen ? 'fullscreen' : ''}`}>
       <div className="chat-header">
-        <h3>Chat Assistant</h3>
-        <button className="close-button" onClick={onClose}>
-          &times;
-        </button>
+        <div className="header-left">
+          <div className="header-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+            </svg>
+          </div>
+          <h3>{agentName}</h3>
+        </div>
+        <div className="header-right">
+          <button 
+            className="fullscreen-button" 
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            aria-label={isFullScreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullScreen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+              </svg>
+            )}
+          </button>
+          <button className="close-button" onClick={onClose}>
+            &times;
+          </button>
+        </div>
       </div>
       
       <div className="chat-messages">

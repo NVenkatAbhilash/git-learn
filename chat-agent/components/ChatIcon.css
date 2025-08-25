@@ -1,7 +1,7 @@
 .chat-icon {
   position: fixed;
-  width: 60px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   border-radius: 50%;
   background-color: #4a6cf7;
   color: white;
@@ -13,6 +13,7 @@
   transition: transform 0.2s, box-shadow 0.2s;
   z-index: 1000;
   user-select: none;
+  padding: 12px;
 }
 
 .chat-icon:hover {
@@ -27,8 +28,8 @@
 }
 
 .chat-icon svg {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
 }
 
 @media (prefers-color-scheme: dark) {

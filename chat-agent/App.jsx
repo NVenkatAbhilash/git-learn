@@ -9,6 +9,8 @@ import './components/ChatInterface.css'
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  // Chat agent name
+  const chatAgentName = "IntelliChat";
   
   const toggleChat = () => {
     setIsChatOpen(!isChatOpen);
@@ -18,11 +20,22 @@ function App() {
     setIsChatOpen(false);
   };
   
+  // Handle click outside chat interface
+  const handleOutsideClick = (e) => {
+    if (isChatOpen && e.target.className === 'app') {
+      closeChat();
+    }
+  };
+  
   return (
-    <div className="app">
+    <div className="app" onClick={handleOutsideClick}>
       <WelcomePage />
       <ChatIcon onClick={toggleChat} />
-      <ChatInterface isOpen={isChatOpen} onClose={closeChat} />
+      <ChatInterface 
+        isOpen={isChatOpen} 
+        onClose={closeChat} 
+        agentName={chatAgentName}
+      />
     </div>
   )
 }

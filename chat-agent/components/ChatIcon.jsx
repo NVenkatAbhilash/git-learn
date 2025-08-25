@@ -28,7 +28,7 @@ const ChatIcon = ({ onClick }) => {
       let newY = e.clientY - dragOffset.y;
       
       // Constrain to window boundaries
-      const iconSize = 60; // Size of the icon
+      const iconSize = 70; // Size of the icon
       const maxX = window.innerWidth - iconSize;
       const maxY = window.innerHeight - iconSize;
       
@@ -93,7 +93,7 @@ const ChatIcon = ({ onClick }) => {
   useEffect(() => {
     const handleResize = () => {
       setPosition(prevPosition => {
-        const iconSize = 60;
+        const iconSize = 70;
         const maxX = window.innerWidth - iconSize;
         const maxY = window.innerHeight - iconSize;
         
