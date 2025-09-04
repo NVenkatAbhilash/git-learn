@@ -1,0 +1,8 @@
+# Install required packages
+pip install langchain-google-genai
+pip install langchain-community
+pip install langchain-openai  # For embeddings
+pip install pypdf
+pip install faiss-cpu  # or faiss-gpu for GPU support
+pip install chromadb
+pip install python-dotenv
