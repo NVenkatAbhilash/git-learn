@@ -1,4 +1,4 @@
-[MEDIA_COMPRESSION.md](https://github.com/user-attachments/files/27355568/MEDIA_COMPRESSION.md)
+[MEDIA_COMPRESSION.md](https://github.com/user-attachments/files/27355608/MEDIA_COMPRESSION.md)
 # Media Compression Guide
 
 ## Contents
@@ -11,18 +11,16 @@
 - [Batch Compress (Single Folder)](#batch-compress-single-folder)
 - [Batch Compress (With Subfolders)](#batch-compress-with-subfolders)
 - [Image Notes](#notes)
-- [Image Results](#results-from-first-run)
 
 ### Videos
 - [Tool: FFmpeg](#tool-ffmpeg-apple-silicon-hardware-encoder)
 - [Preset](#preset)
 - [Single File](#single-file)
 - [Batch Compress](#batch-compress-entire-folder)
+- [Convert Slow-Motion to Normal Speed](#convert-slow-motion-to-normal-speed)
 - [Copy Metadata Only](#copy-metadata-only-no-compression)
-- [Remove Slow Motion](#remove-slow-motion-convert-to-normal-speed)
 - [Verify Integrity](#verify-compressed-files-integrity-check)
-- [Video Notes](#notes)
-- [Video Results](#results)
+- [Video Notes](#notes-1)
 
 ---
 
@@ -136,14 +134,6 @@ xargs -0 -P 10 -I {} bash -c '
 - `-P 10` runs 10 images in parallel — adjust based on CPU cores
 - Both batch scripts are resume-safe — re-run and they skip already compressed files
 
-### Results from First Run
-
-| | Photos | Size |
-|---|--------|------|
-| Original | 8,517 | 121 GB |
-| 4K + q85 | 8,517 | 10 GB |
-| **Savings** | — | **111 GB (92%)** |
-
 ---
 
 # Video Compression Guide
@@ -184,43 +174,47 @@ ffmpeg -y -i "INPUT.MP4" \
 
 ### Batch Compress (Entire Folder)
 
-Compresses all `.MP4` files from source to destination, preserving creation and modification dates.
-Skips files that already exist in destination (safe to re-run).
+Compresses all `.MP4` files, preserving dates. Skips existing files (safe to re-run).
+Runs ffmpeg in background with per-file timeout to prevent hangs on large files.
 
 ```bash
 SOURCE="/path/to/source/folder"
 DEST="/path/to/destination/folder"
-
 mkdir -p "$DEST"
 
 for src in "$SOURCE"/*.MP4; do
   basename=$(basename "$src")
-  name="${basename%.*}"
-  dest_file="$DEST/${name}.mp4"
-
-  # Skip if already compressed
+  dest_file="$DEST/${basename%.*}.mp4"
   [ -f "$dest_file" ] && echo "SKIP: $basename" && continue
 
-  # Capture source dates
   mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
   created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
+  file_mb=$(( $(stat -f "%z" "$src") / 1048576 ))
+  timeout_sec=$file_mb; [ $timeout_sec -lt 600 ] && timeout_sec=600; [ $timeout_sec -gt 5400 ] && timeout_sec=5400
 
-  echo "Compressing: $basename ..."
+  echo "Compressing: $basename (${file_mb}MB, timeout ${timeout_sec}s) ..."
 
   ffmpeg -y -i "$src" \
-    -c:v hevc_videotoolbox \
-    -q:v 65 \
-    -tag:v hvc1 \
+    -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 \
     -vf "scale=min(3840\,iw):min(2160\,ih)" \
     -c:a aac -ac 2 -b:a 160k \
-    -movflags +faststart \
-    -map_metadata 0 \
-    "$dest_file"
+    -movflags +faststart -map_metadata 0 -max_muxing_queue_size 4096 \
+    "$dest_file" < /dev/null 2>/dev/null &
+  pid=$!
 
-  # Restore original dates
+  elapsed=0
+  while kill -0 $pid 2>/dev/null; do
+    sleep 5; elapsed=$((elapsed + 5))
+    if [ $elapsed -ge $timeout_sec ]; then
+      kill -9 $pid 2>/dev/null; wait $pid 2>/dev/null
+      echo "  TIMEOUT: $basename"; rm -f "$dest_file"; continue 2
+    fi
+  done
+  wait $pid
+  [ $? -ne 0 ] || [ ! -f "$dest_file" ] && echo "  FAILED: $basename" && rm -f "$dest_file" && continue
+
   SetFile -d "$created" "$dest_file"
   touch -mt "$mod" "$dest_file"
-
   echo "Done: $basename"
 done
 ```
@@ -262,65 +256,110 @@ for f in "$DEST"/*.mp4; do
 done && echo "All files OK."
 ```
 
-### Remove Slow Motion (Convert to Normal Speed)
+### Convert Slow-Motion to Normal Speed
 
-Slow-motion videos (typically 100fps or higher) can be converted to normal 25fps playback to significantly reduce file size (~70% smaller). This drops the extra frames and plays the video at normal speed.
+| Type | How to detect | Fix |
+|------|--------------|-----|
+| **Raw high-fps** | `ffprobe` shows fps > 60 (e.g. 100fps, 300fps) | Re-encode with `-r 25` to drop extra frames |
+| **Baked by camera** | `ffprobe` shows 25fps, but camera XML has `captureFps="100.00p"` and `RecordingMode type="slowAndQuickMotion"` | Speed up with `setpts=PTS/4` |
+
+#### Raw High-FPS (drop frames)
+
+Converts in-place. Same timeout logic as batch compress.
 
 ```bash
-SOURCE="/path/to/source/folder"
+FOLDER="/path/to/compressed/folder"
 
-for src in "$SOURCE"/*.mp4; do
-  [ -f "$src" ] || continue
-  basename=$(basename "$src")
-
-  # Check frame rate
+find "$FOLDER" -maxdepth 1 -type f -iname "*.mp4" -print0 | sort -z | while IFS= read -r -d '' src; do
   fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$src" 2>/dev/null)
-  num=$(echo "$fps" | cut -d/ -f1)
-  den=$(echo "$fps" | cut -d/ -f2)
-  rate=0
-  [ -n "$den" ] && [ "$den" -gt 0 ] 2>/dev/null && rate=$(echo "scale=0; $num / $den" | bc)
-
-  # Skip if not slow-motion
+  num=$(echo "$fps" | cut -d/ -f1); den=$(echo "$fps" | cut -d/ -f2)
+  rate=0; [ -n "$den" ] && [ "$den" -gt 0 ] 2>/dev/null && rate=$((num / den))
   [ "$rate" -le 60 ] 2>/dev/null && continue
 
-  # Capture source dates
+  file_mb=$(($(stat -f "%z" "$src") / 1048576))
   mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
   created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
-
   tmp="${src}.tmp.mp4"
-  echo "Converting: $basename (${rate}fps -> 25fps)"
+  timeout_sec=$file_mb; [ $timeout_sec -lt 600 ] && timeout_sec=600; [ $timeout_sec -gt 5400 ] && timeout_sec=5400
+
+  echo "Converting: $(basename "$src") (${rate}fps -> 25fps, ${file_mb}MB)"
 
   ffmpeg -y -i "$src" \
-    -c:v hevc_videotoolbox \
-    -q:v 65 \
-    -tag:v hvc1 \
-    -vf "scale=min(3840\,iw):min(2160\,ih)" \
-    -r 25 \
+    -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 \
+    -vf "scale=min(3840\,iw):min(2160\,ih)" -r 25 \
     -c:a aac -ac 2 -b:a 160k \
-    -movflags +faststart \
-    -map_metadata 0 \
-    "$tmp" && mv "$tmp" "$src"
+    -movflags +faststart -map_metadata 0 -max_muxing_queue_size 4096 \
+    "$tmp" < /dev/null 2>/dev/null &
+  pid=$!; elapsed=0
+  while kill -0 $pid 2>/dev/null; do
+    sleep 5; elapsed=$((elapsed + 5))
+    [ $elapsed -ge $timeout_sec ] && kill -9 $pid 2>/dev/null && wait $pid 2>/dev/null && echo "  TIMEOUT" && rm -f "$tmp" && continue 2
+  done
+  wait $pid
+  [ $? -ne 0 ] || [ ! -f "$tmp" ] && echo "  FAILED" && rm -f "$tmp" && continue
 
-  # Restore original dates
-  SetFile -d "$created" "$src"
-  touch -mt "$mod" "$src"
-
-  echo "Done: $basename"
+  mv "$tmp" "$src"
+  SetFile -d "$created" "$src"; touch -mt "$mod" "$src"
+  echo "  Done: ${file_mb}MB -> $(($(stat -f "%z" "$src") / 1048576))MB"
 done
 ```
+
+#### Baked Slo-Mo (speed up playback)
+
+Find baked slo-mo files using camera XML sidecars from the **original source folder**:
+
+```bash
+grep -l 'slowAndQuickMotion' "/path/to/original/source/"*.XML | while read xml; do
+  base=$(basename "$xml" M01.XML)
+  fps=$(grep -o 'captureFps="[^"]*"' "$xml")
+  echo "$base: $fps"
+done
+```
+
+Speed them up (4x for 100fps captured at 25fps):
+
+```bash
+FOLDER="/path/to/compressed/folder"
+FILES=(C7297 C7306)  # add file list from above
+
+for name in "${FILES[@]}"; do
+  src="$FOLDER/${name}.mp4"
+  [ ! -f "$src" ] && echo "MISSING: ${name}.mp4" && continue
+
+  orig_mb=$(($(stat -f "%z" "$src") / 1048576))
+  mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
+  created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
+  tmp="${src}.tmp.mp4"
+
+  echo "Speedup 4x: ${name}.mp4 (${orig_mb}MB)"
+
+  ffmpeg -y -i "$src" \
+    -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 \
+    -vf "setpts=PTS/4,scale=min(3840\,iw):min(2160\,ih)" \
+    -af "atempo=2.0,atempo=2.0" \
+    -c:a aac -ac 2 -b:a 160k \
+    -movflags +faststart -map_metadata 0 -max_muxing_queue_size 4096 \
+    "$tmp" < /dev/null 2>/dev/null
+  [ $? -ne 0 ] || [ ! -f "$tmp" ] && echo "  FAILED" && rm -f "$tmp" && continue
+
+  mv "$tmp" "$src"
+  SetFile -d "$created" "$src"; touch -mt "$mod" "$src"
+  echo "  Done: ${orig_mb}MB -> $(($(stat -f "%z" "$src") / 1048576))MB"
+done
+```
+
+| Capture FPS | Speedup | Video filter | Audio filter |
+|---|---|---|---|
+| 100fps | 4x | `setpts=PTS/4` | `atempo=2.0,atempo=2.0` |
+| 200fps | 8x | `setpts=PTS/8` | `atempo=2.0,atempo=2.0,atempo=2.0` |
+| 300fps | 12x | `setpts=PTS/12` | `atempo=2.0,atempo=2.0,atempo=2.0,atempo=1.5` |
 
 ### Notes
 
 - `hevc_videotoolbox` uses Apple Silicon hardware encoder — fast and power efficient
-- `-q:v 65` is high quality; lower number = higher quality, higher filesize
 - `hvc1` tag ensures compatibility with Apple devices and QuickTime
 - `SetFile` requires Xcode Command Line Tools (`xcode-select --install`)
-- The batch script is resume-safe — re-run it and it skips already compressed files
-- Source framerate is preserved (no upscaling from 25fps to 60fps)
-
-### Results
-
-| Folder | Files | Original | Compressed | Savings |
-|---|---|---|---|---|
-| Kavali Pelli Kuthuru | 405 | 101 GB | 28 GB | 73 GB (72%) |
-| Pelli Koduku till Marriage start | 558 | 228 GB | 165 GB | 63 GB (28%) |
+- All batch scripts are resume-safe — re-run and they skip already processed files
+- `< /dev/null` and `-max_muxing_queue_size 4096` prevent ffmpeg from hanging on large files
+- Per-file timeout (1s/MB, min 10min, max 90min) kills hung encodes automatically
+- Baked slo-mo files have no real audio — the camera records silence during slow-motion mode
