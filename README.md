@@ -1,4 +1,4 @@
-[IMAGE_COMPRESSION.md](https://github.com/user-attachments/files/27330616/IMAGE_COMPRESSION.md)
+[MEDIA_COMPRESSION.md](https://github.com/user-attachments/files/27337370/MEDIA_COMPRESSION.md)
 # Media Compression Guide
 
 ## Contents
@@ -11,6 +11,7 @@
 - [Batch Compress (Single Folder)](#batch-compress-single-folder)
 - [Batch Compress (With Subfolders)](#batch-compress-with-subfolders)
 - [Image Notes](#notes)
+- [Image Results](#results-from-first-run)
 
 ### Videos
 - [Tool: FFmpeg](#tool-ffmpeg-apple-silicon-hardware-encoder)
@@ -18,8 +19,10 @@
 - [Single File](#single-file)
 - [Batch Compress](#batch-compress-entire-folder)
 - [Copy Metadata Only](#copy-metadata-only-no-compression)
+- [Remove Slow Motion](#remove-slow-motion-convert-to-normal-speed)
 - [Verify Integrity](#verify-compressed-files-integrity-check)
 - [Video Notes](#notes)
+- [Video Results](#results)
 
 ---
 
@@ -132,6 +135,14 @@ xargs -0 -P 10 -I {} bash -c '
 - `SetFile` requires Xcode Command Line Tools (`xcode-select --install`)
 - `-P 10` runs 10 images in parallel — adjust based on CPU cores
 - Both batch scripts are resume-safe — re-run and they skip already compressed files
+
+### Results from First Run
+
+| | Photos | Size |
+|---|--------|------|
+| Original | 8,517 | 121 GB |
+| 4K + q85 | 8,517 | 10 GB |
+| **Savings** | — | **111 GB (92%)** |
 
 ---
 
@@ -251,6 +262,53 @@ for f in "$DEST"/*.mp4; do
 done && echo "All files OK."
 ```
 
+### Remove Slow Motion (Convert to Normal Speed)
+
+Slow-motion videos (typically 100fps or higher) can be converted to normal 25fps playback to significantly reduce file size (~70% smaller). This drops the extra frames and plays the video at normal speed.
+
+```bash
+SOURCE="/path/to/source/folder"
+
+for src in "$SOURCE"/*.mp4; do
+  [ -f "$src" ] || continue
+  basename=$(basename "$src")
+
+  # Check frame rate
+  fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$src" 2>/dev/null)
+  num=$(echo "$fps" | cut -d/ -f1)
+  den=$(echo "$fps" | cut -d/ -f2)
+  rate=0
+  [ -n "$den" ] && [ "$den" -gt 0 ] 2>/dev/null && rate=$(echo "scale=0; $num / $den" | bc)
+
+  # Skip if not slow-motion
+  [ "$rate" -le 60 ] 2>/dev/null && continue
+
+  # Capture source dates
+  mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
+  created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
+
+  tmp="${src}.tmp.mp4"
+  echo "Converting: $basename (${rate}fps -> 25fps)"
+
+  ffmpeg -y -i "$src" \
+    -c:v hevc_videotoolbox \
+    -q:v 65 \
+    -tag:v hvc1 \
+    -vf "scale=min(3840\,iw):min(2160\,ih)" \
+    -r 25 \
+    -c:a aac -ac 2 -b:a 160k \
+    -movflags +faststart \
+    -map_metadata 0 \
+    "$tmp" && mv "$tmp" "$src"
+
+  # Restore original dates
+  SetFile -d "$created" "$src"
+  touch -mt "$mod" "$src"
+
+  echo "Done: $basename"
+done
+```
+
 ### Notes
 
 - `hevc_videotoolbox` uses Apple Silicon hardware encoder — fast and power efficient
@@ -259,3 +317,10 @@ done && echo "All files OK."
 - `SetFile` requires Xcode Command Line Tools (`xcode-select --install`)
 - The batch script is resume-safe — re-run it and it skips already compressed files
 - Source framerate is preserved (no upscaling from 25fps to 60fps)
+
+### Results
+
+| Folder | Files | Original | Compressed | Savings |
+|---|---|---|---|---|
+| Kavali Pelli Kuthuru | 405 | 101 GB | 28 GB | 73 GB (72%) |
+| Pelli Koduku till Marriage start | 558 | 228 GB | 165 GB | 63 GB (28%) |
