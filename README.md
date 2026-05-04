@@ -1,4 +1,4 @@
-[MEDIA_COMPRESSION.md](https://github.com/user-attachments/files/27337370/MEDIA_COMPRESSION.md)
+[MEDIA_COMPRESSION.md](https://github.com/user-attachments/files/27355568/MEDIA_COMPRESSION.md)
 # Media Compression Guide
 
 ## Contents
