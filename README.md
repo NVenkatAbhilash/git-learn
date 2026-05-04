@@ -1,4 +1,4 @@
-[IMAGE_COMPRESSION.md](https://github.com/user-attachments/files/27330519/IMAGE_COMPRESSION.md)
+[IMAGE_COMPRESSION.md](https://github.com/user-attachments/files/27330616/IMAGE_COMPRESSION.md)
 # Media Compression Guide
 
 ## Contents
@@ -8,8 +8,9 @@
 - [Single Image](#single-image)
 - [Quality Options](#quality-options)
 - [Resize Options](#resize-options)
-- [Batch Processing](#batch-processing)
-- [Image Results](#results-from-first-run)
+- [Batch Compress (Single Folder)](#batch-compress-single-folder)
+- [Batch Compress (With Subfolders)](#batch-compress-with-subfolders)
+- [Image Notes](#notes)
 
 ### Videos
 - [Tool: FFmpeg](#tool-ffmpeg-apple-silicon-hardware-encoder)
@@ -19,7 +20,6 @@
 - [Copy Metadata Only](#copy-metadata-only-no-compression)
 - [Verify Integrity](#verify-compressed-files-integrity-check)
 - [Video Notes](#notes)
-- [Video Results](#results)
 
 ---
 
@@ -62,29 +62,76 @@ magick "input.jpg" -resize 3840x2160\> -quality 85 "output.jpg"
 | 2K | `-resize 1920x1080\>` | Social media / sharing |
 | Original | _(omit flag)_ | Keep full resolution, only recompress |
 
-### Batch Processing
+### Batch Compress (Single Folder)
 
-For bulk compression with subfolder support, preserved dates, and parallel processing:
+Compresses all images in a folder, preserving creation and modification dates.
+Skips files that already exist in destination (safe to re-run).
 
 ```bash
-bash compress_photos.sh
+SOURCE="/path/to/source/folder"
+DEST="/path/to/destination/folder"
+
+mkdir -p "$DEST"
+
+for src in "$SOURCE"/*.jpg "$SOURCE"/*.JPG "$SOURCE"/*.jpeg "$SOURCE"/*.png; do
+  [ -f "$src" ] || continue
+  basename=$(basename "$src")
+  dest_file="$DEST/$basename"
+
+  # Skip if already compressed
+  [ -f "$dest_file" ] && echo "SKIP: $basename" && continue
+
+  # Capture source dates
+  mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
+  created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
+
+  magick "$src" -resize 3840x2160\> -quality 85 "$dest_file"
+
+  # Restore original dates
+  SetFile -d "$created" "$dest_file"
+  touch -mt "$mod" "$dest_file"
+
+  echo "Done: $basename"
+done
 ```
 
-Edit `SRC` and `DEST` at the top of the script before running. The script:
+### Batch Compress (With Subfolders)
 
-- Processes images in parallel (10 workers)
-- Preserves EXIF metadata (camera info, date taken, GPS)
-- Copies filesystem dates (date created & date modified) from originals
-- Skips already-processed files (safe to re-run if interrupted)
-- Logs progress to `_progress.log` in the output folder
+Compresses all images recursively, preserving folder structure and dates.
+Uses 10 parallel workers for speed. Skips already-processed files.
 
-### Results from First Run
+```bash
+SRC="/path/to/source"
+DEST="/path/to/output"
 
-| | Photos | Size |
-|---|--------|------|
-| Original | 8,517 | 121 GB |
-| 4K + q85 | 8,517 | 10 GB |
-| **Savings** | — | **111 GB (92%)** |
+find "$SRC" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -print0 | \
+xargs -0 -P 10 -I {} bash -c '
+  src="$1"; dest="${src/$2/$3}"; mkdir -p "$(dirname "$dest")"
+
+  # Skip if already compressed
+  [ -f "$dest" ] && echo "SKIP: $(basename "$src")" && exit 0
+
+  # Capture source dates
+  mod=$(stat -f "%Sm" -t "%Y%m%d%H%M.%S" "$src")
+  created=$(stat -f "%SB" -t "%m/%d/%Y %H:%M:%S" "$src")
+
+  magick "$src" -resize 3840x2160\> -quality 85 "$dest"
+
+  # Restore original dates
+  SetFile -d "$created" "$dest"
+  touch -mt "$mod" "$dest"
+
+  echo "Done: $(basename "$src")"
+' _ {} "$SRC" "$DEST"
+```
+
+### Notes
+
+- `\>` after resize dimensions means never upscale if image is already smaller
+- `-quality 85` is the sweet spot — 65% smaller with excellent visual quality
+- `SetFile` requires Xcode Command Line Tools (`xcode-select --install`)
+- `-P 10` runs 10 images in parallel — adjust based on CPU cores
+- Both batch scripts are resume-safe — re-run and they skip already compressed files
 
 ---
 
